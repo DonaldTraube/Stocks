@@ -1,0 +1,47 @@
+#Jupyter
+import sys
+!{sys.executable} -m pip install yfinance pandas numpy ta
+
+import yfinance as yf
+import pandas as pd
+import numpy as np
+import ta  # Alternative to talib
+
+# Function to fetch stock data
+def get_stock_data(symbol, period="3y", interval="1d"):
+    stock = yf.Ticker(symbol)
+    data = stock.history(period=period, interval=interval)
+    return data
+
+# Function to identify Elliott Wave 3
+def detect_elliott_wave_3(data):
+    # Calculate Simple Moving Averages (SMA)
+    data['SMA_50'] = ta.trend.sma_indicator(data['Close'], window=50)
+    data['SMA_200'] = ta.trend.sma_indicator(data['Close'], window=200)
+    
+    # Identify potential Wave 1 (Initial uptrend)
+    data['Wave1'] = (data['Close'].shift(-2) > data['Close']) & (data['Close'].shift(-1) > data['Close'])
+    
+    # Identify Wave 2 (Correction)
+    data['Wave2'] = (data['Close'].shift(-1) < data['Close']) & (data['Close'].shift(-2) < data['Close'])
+
+    # Identify Wave 3 (Strong upward movement)
+    data['Wave3'] = (data['Close'] > data['SMA_50']) & (data['SMA_50'] > data['SMA_200']) & \
+                    (data['Close'].diff() > 0) & (data['Wave1'].shift(2)) & (data['Wave2'].shift(1))
+
+    return data
+
+# List of stocks to scan
+stock_list = ["PG", "SPGI", "ODFL", "PEP", "KO", "MA", "V", "META", "HD", "SPOT", "HIMS", "GTLB", "MELI", "VSCO", "ADBE", "NKE", "CAT", "GOOG", "UBER", "ORCL", "GM", "QQQ", "PFE", "ELV", "MRK", "XOM", "AMD", "GOOGL", "WMT", "CSCO", "QCOM", "CI", "CVX", "GILD", "GRAB", "BAC", "COST", "AAPL", "F", "NIO", "LCID", "PLTR", "SMCI", "HOOD", "T", "BBAR", "BABA", "NFLX", "GOOGL", "MSFT", "NVDA", "AMZN", "TSLA", "SPY", "ETHE", "IBIT", "VOO", "VTI", "VUG", "SCHG", "SOXL", "SPLG", "TLT", "GLD", "SLV", "VFLO", "O", "TDW", "ACLS"]  # Add more stocks
+
+# Scan for Elliott Wave 3
+wave_3_stocks = []
+for stock in stock_list:
+    data = get_stock_data(stock)
+    processed_data = detect_elliott_wave_3(data)
+    
+    if processed_data['Wave3'].iloc[-1]:  # If last row shows Wave 3 signal
+        wave_3_stocks.append(stock)
+
+# Output results
+print("📈 Stocks in Elliott Wave 3:", wave_3_stocks)
