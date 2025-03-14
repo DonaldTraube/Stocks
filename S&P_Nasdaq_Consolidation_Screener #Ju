@@ -1,0 +1,85 @@
+#Jupyter
+!pip install yfinance pandas-ta pandas numpy 
+
+import yfinance as yf
+import pandas as pd
+import pandas_ta as ta
+import numpy as np
+
+# Function to fetch 4H stock data from Yahoo Finance
+def get_stock_data(symbol, period="3y", interval="1d"):
+    try:
+        stock = yf.Ticker(symbol)
+        df = stock.history(period=period, interval=interval)
+        if df.empty:
+            print(f"Data not found for {symbol}")
+            return None
+        df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
+        return df
+    except Exception as e:
+        print(f"Error fetching data for {symbol}: {e}")
+        return None
+
+# Function to check for consolidation based on Bollinger Bands and ATR
+def check_consolidation(df, bb_length=20, atr_length=14, width_threshold=0.05, atr_threshold=0.5):
+    if df is None or len(df) < bb_length:
+        return False  # Not enough data
+
+    # Compute Bollinger Bands dynamically
+    bb = ta.bbands(df["Close"], length=bb_length, std=2)
+    
+    if bb is None or len(bb) < bb_length:
+        return False
+
+    df = df.join(bb)
+    df["BB_Width"] = df.iloc[:, 2] - df.iloc[:, 0]  # Upper BB - Lower BB
+
+    # Compute ATR
+    df["ATR"] = ta.atr(df["High"], df["Low"], df["Close"], length=atr_length)
+
+    # Checking last 10 bars for consolidation
+    recent_data = df.iloc[-10:]  # Last 10 candles
+    avg_bb_width = recent_data["BB_Width"].mean()
+    avg_atr = recent_data["ATR"].mean()
+
+    if avg_bb_width < df["BB_Width"].mean() * width_threshold and avg_atr < df["ATR"].mean() * atr_threshold:
+        return True
+    return False
+
+# Function to get S&P 500 stock symbols from Wikipedia
+def get_sp500_symbols():
+    url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+    tables = pd.read_html(url)
+    df = tables[0]
+    return df["Symbol"].tolist()
+
+# Function to get Nasdaq-100 stock symbols from Wikipedia
+def get_nasdaq100_symbols():
+    url = "https://en.wikipedia.org/wiki/NASDAQ-100"
+    tables = pd.read_html(url)
+    df = tables[4]  # Nasdaq-100 stocks are usually in this table
+    return df["Ticker"].tolist()
+
+# Function to scan market for consolidating stocks
+def scan_market(tickers):
+    consolidating_stocks = []
+    
+    for symbol in tickers[:2000]:  # Full 500 scan
+        print(f"Checking {symbol}...")
+        df = get_stock_data(symbol)
+        if df is not None and check_consolidation(df):
+            consolidating_stocks.append(symbol)
+
+    return consolidating_stocks
+
+# Get symbols for S&P 500 and Nasdaq-100
+sp500_tickers = get_sp500_symbols()
+nasdaq_tickers = get_nasdaq100_symbols()
+all_tickers = list(set(sp500_tickers + nasdaq_tickers))  # Unique symbols from both indexes
+
+# Scan the market for consolidating stocks
+consolidating_stocks = scan_market(all_tickers[:2000])  # Scan first 600 stocks for speed
+
+# Output results
+print("\nStocks in consolidation phase (1d timeframe):")
+print(consolidating_stocks)
